@@ -1,0 +1,22 @@
+{
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start-index": "ts-node ./src/geotiff.ts",
+    "prestart": "npm run build",
+    "start": "ts-node .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.11",
+    "@types/numjs": "^0.14.5",
+    "@typescript-eslint/eslint-plugin": "^4.15.0",
+    "@typescript-eslint/parser": "^4.15.0",
+    "cross-fetch": "^3.0.6",
+    "express": "^4.17.1",
+    "geotiff": "^1.0.0-beta.16",
+    "numjs": "https://github.com/nicolaspanel/numjs",
+    "ts-node": "^9.1.1",
+    "typescript": "^4.1.5"
+  }
+}
