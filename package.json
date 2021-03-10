@@ -17,9 +17,11 @@
     "express": "^4.17.1",
     "geotiff": "^1.0.0-beta.16",
     "ipld": "^0.28.0",
-    "ipld-block": "^0.11.0",
     "numjs": "https://github.com/nicolaspanel/numjs",
     "ts-node": "^9.1.1",
     "typescript": "^4.1.5"
+  },
+  "dependencies": {
+    "@textile/powergate-client": "^4.0.0"
   }
 }

@@ -2,6 +2,7 @@ import { fromUrl, fromFile, fromUrls, fromArrayBuffer, fromBlob } from 'geotiff'
 import * as GeoTIFF from 'geotiff';
 import fetch from 'cross-fetch';
 import { GeoUtils } from './utils/geo-utils'
+import { Powergate } from './powergate'
 //import Block from '@ipld/block/defaults';
 
 /**
@@ -13,15 +14,20 @@ import { GeoUtils } from './utils/geo-utils'
  * 3) 
  */
 
+interface TileSize {
+    width: number;
+    height: number;
+}
+
 interface Tile {
-    cid: string;
-    window: number[];
-    tileSize: number[];
+    cid?: string;
+    window: string;
+    tileSize: TileSize;
 }
 
 interface GeoTIFFDoc {
-    tile: Tile;
-    children: Tile[];
+    row_window: any;
+    children: Tile[][];
 }
 
 interface EncodeData {
@@ -36,18 +42,31 @@ function isTiled(image: any): boolean {
 }
 
 
-function createBlock(){
 
-}
+async function createTheTileArray(image: any, n = 0): Promise<any> {
 
-async function createTheTileArray(image: any, n?: number): Promise<any> {
+    //const powergate = await Powergate.build();
+    
+    // get token 
+
     const origin = 0;
-
-    const xTSize: number = image.getTileHeight();
-    const yTSize: number = image.getTileHeight();
 
     const rows: number = image.getHeight();
     const cols: number = image.getWidth();
+
+    // First iteration it is 0
+    const current_scale = Math.pow(2, n);
+    const next_scale = Math.pow(2, n + 1);
+
+    // TODO: Fix later
+    const current_xTSize = image.getTileHeight() * current_scale;
+    const current_yTSize = image.getTileHeight() * current_scale;
+
+    // Calculates the next scale level size of the parent tile
+    const next_xTSize = current_xTSize * next_scale;
+    const next_yTSize = current_yTSize * next_scale;
+    //console.log(next_xTSize);
+    //console.log(next_yTSize);
 
     // [left, top, right, bottom] => [0, 0, tile width, tile height]
     // [0, 0, 0, 0]
@@ -60,49 +79,171 @@ async function createTheTileArray(image: any, n?: number): Promise<any> {
     let right_boundary: number = 0;
     let bottom_boundary: number = 0;
 
-    let dataWindow: Array<any>;
+    let counterA = 0;
+    let counterB = 0;
 
+    let start: number = 0;
+
+    // wrapper Array that we will use to wrap the currentArray
+    let wrapper: GeoTIFFDoc[] = [];
+
+    // declare current_ArrayA
+    let current_ArrayA : Array<Array<Tile>>;
+
+    // declare current_ArrayB
+    let current_ArrayB: Array<Tile>;
+
+    let index: number = 0;
+    let info: number = 0;
+
+    let endingA: boolean = false;
+    
     // i acts as the "top" boundary variable in the window
-    for(let i = 0; i < rows; i += yTSize){
+    for(let i = 0; i < rows; i += current_yTSize){
 
-        if((i + yTSize) < rows){
-            numRows = yTSize;
-            bottom_boundary += yTSize;
+        if((i + current_yTSize) < rows){
+            numRows = current_yTSize;
+            bottom_boundary += current_yTSize;
+            endingA = false;
         }
         else{
             numRows = rows - i;
-            bottom_boundary += numRows;
+            bottom_boundary += numRows
+            endingA = true;
         }
 
-        // j acts as the "left" boundary variable in the window 
-        for(let j = 0; j < cols; j += xTSize){
+        // Genesis
+        if(counterA == 0){
+            // initialize 2D array of Tile Interface
+            current_ArrayA = new Array<Array<Tile>>();
+            start = i;
+        }
+        else if(counterA % 2 == 0){
+            const geotiffdoc: GeoTIFFDoc = {
+                row_window: `${start} - ${i}`,
+                children: current_ArrayA
+            }
+            // push to the Wrapper Array (3D)
+            wrapper.push(geotiffdoc);
 
-            if((j + xTSize) < cols){
-                numCols = xTSize;
-                right_boundary += xTSize;
+            // refresh the indexes
+            start = i;
+            index = 0;
+            // initialize a new Array for the next 2 Rows
+            current_ArrayA = new Array<Array<Tile>>();
+        }
+
+        let endingB: boolean = false;
+
+        // j acts as the "left" boundary variable in the window 
+        for(let j = 0; j < cols; j += current_xTSize){
+
+            if(((j + current_xTSize) < cols)){
+                numCols = current_xTSize;
+                right_boundary += current_xTSize;
+                endingB = false;
             }
             else{
                 numCols = cols - j;
                 right_boundary += numCols;
+                endingB = true;
+            }
+
+            console.log(counterA + ' ' + counterB)
+
+            if((counterA % 2) != 0){
+                info = current_ArrayA.length;
+                console.log(info)
+ 
+                if(((counterB % 2) == 0) && (counterB != 0)) index += 1;
+                
+                if(index < info){
+                    current_ArrayB = current_ArrayA[index];
+                    //console.log(current_ArrayB)
+                    //console.log()
+                }
+            } 
+            else{
+                // Genesis
+                if(counterB == 0){
+                    // initialize the column array 
+                    current_ArrayB = new Array<Tile>();
+                }
+                else if(((counterB % 2) == 0) ){
+                    // push the current_ArrayB into current_ArrayA
+                    current_ArrayA.push(current_ArrayB);
+                    current_ArrayB = new Array<Tile>();
+                }
+                console.log(current_ArrayB);
             }
 
             current_window = [j, i, right_boundary, bottom_boundary];
-            console.log("Current Window: " + current_window);
+            //console.log("Current Window: " + current_window);
             
-            // read the specific block of data from the window
-            const tile_data = await image.readRasters({ window: current_window });
-            console.log(tile_data)
-            // console.log(typeof(tile_data[0]));
+            try{
+                // read the specific block of data from the window
+                const tile_data = await image.readRasters({ window: current_window });
+                //console.log(tile_data)
 
-            const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
-            console.log(buffer);
+                //const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
+                //console.log(buffer);
 
-            // Add Tile
-            // const b1 = Block.encoder({ hello: 'world' }, 'dag-cbor')
+                //const cid = await powergate.getAssetCid(buffer);
+
+                //await powergate.pin(cid);
+
+                // array of tiles 
+                
+                const tile: Tile = {
+                    window: `${current_window}`,
+                    tileSize: {
+                        width: tile_data.width,
+                        height: tile_data.height
+                    }
+                }
+
+                // push the tiles to the tile Array
+                current_ArrayB.push(tile);
+
+            }catch(e){
+                console.log(e);
+            }
+            
+            // Edge case for Cols, needs to push itself
+            if(endingB == true){
+                console.log(current_ArrayB);
+                current_ArrayA.push(current_ArrayB);
+                console.log(current_ArrayA);
+            }
+
+            
+
+            counterB += 1;
         }
-        // reset the right boundary 
-        right_boundary = 0;
+
+        // Edge case for Rows, needs to push itself
+        if(endingA == true){
+            const geotiffdoc: GeoTIFFDoc = {
+                row_window: `${start} - ${right_boundary}`,
+                children: current_ArrayA
+            }
+            // push to the Wrapper Array (3D)
+            wrapper.push(geotiffdoc);
+        }
+
+        right_boundary = 0; // reset the right boundary 
+        counterB = 0;
+        counterA += 1; // increment counter A 
+
+        //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA.length);
+        //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA);
+
+       //console.log(current_ArrayA);
     }
+
+    // print the final wrapped Document
+    //console.log(wrapper);
+    //console.log(wrapper.length);
 }
 
  /**
@@ -120,9 +261,14 @@ async function run(url: string){
         //console.log(image);
 
         const samplesPerPixel = image.getSamplesPerPixel();
-        console.log(samplesPerPixel)
+        //console.log(samplesPerPixel);
 
         const istiled = isTiled(image);
+
+        // window = [ left , top , right , bottom ]
+        // bbox = [ min Longitude , min Latitude , max Longitude , max Latitude ]
+        //const bbox = image.getBoundingBox();
+        //console.log(bbox);
 
         if(!istiled){
             await createTheTileArray(image);
