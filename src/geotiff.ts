@@ -149,32 +149,21 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
                 endingB = true;
             }
 
-            console.log(counterA + ' ' + counterB)
-
             if((counterA % 2) != 0){
                 info = current_ArrayA.length;
-                console.log(info)
  
                 if(((counterB % 2) == 0) && (counterB != 0)) index += 1;
                 
-                if(index < info){
-                    current_ArrayB = current_ArrayA[index];
-                    //console.log(current_ArrayB)
-                    //console.log()
-                }
+                if(index < info) current_ArrayB = current_ArrayA[index];
             } 
             else{
-                // Genesis
                 if(counterB == 0){
-                    // initialize the column array 
                     current_ArrayB = new Array<Tile>();
                 }
-                else if(((counterB % 2) == 0) ){
-                    // push the current_ArrayB into current_ArrayA
-                    current_ArrayA.push(current_ArrayB);
+                else if(((counterB % 2) == 0)){
+                    current_ArrayA.push(current_ArrayB); // pushes the previous duo
                     current_ArrayB = new Array<Tile>();
                 }
-                console.log(current_ArrayB);
             }
 
             current_window = [j, i, right_boundary, bottom_boundary];
@@ -209,14 +198,13 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
                 console.log(e);
             }
             
-            // Edge case for Cols, needs to push itself
-            if(endingB == true){
-                console.log(current_ArrayB);
-                current_ArrayA.push(current_ArrayB);
-                console.log(current_ArrayA);
+            // Edge case for Cols, needs to push itself for two scenarios
+            if((endingB == true) && ((counterA % 2) == 0)){
+                current_ArrayA.push(current_ArrayB); // bug
             }
-
-            
+            else if((endingB == true) && ((counterA % 2) != 0)){
+                current_ArrayA[index] = current_ArrayB;
+            }
 
             counterB += 1;
         }
@@ -242,8 +230,8 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
     }
 
     // print the final wrapped Document
-    //console.log(wrapper);
-    //console.log(wrapper.length);
+    console.log(wrapper);
+    console.log(wrapper.length);
 }
 
  /**
