@@ -25,8 +25,13 @@ interface Tile {
     tileSize: TileSize;
 }
 
+// [key] -> 
+interface MasterDocument {
+    [key: string]: GeoTIFFDoc[];
+}
+
 interface GeoTIFFDoc {
-    row_window: any;
+    row_window: string;
     children: Tile[][];
 }
 
@@ -41,36 +46,17 @@ function isTiled(image: any): boolean {
     return (tileWidth == tileHeight) ? true : false;
 }
 
-
-
-async function createTheTileArray(image: any, n = 0): Promise<any> {
+async function createTheTileArray(image: any, current_xTSize: number, current_yTSize: number): Promise<GeoTIFFDoc[]> {
 
     //const powergate = await Powergate.build();
     
     // get token 
 
-    const origin = 0;
-
     const rows: number = image.getHeight();
     const cols: number = image.getWidth();
 
-    // First iteration it is 0
-    const current_scale = Math.pow(2, n);
-    const next_scale = Math.pow(2, n + 1);
-
-    // TODO: Fix later
-    const current_xTSize = image.getTileHeight() * current_scale;
-    const current_yTSize = image.getTileHeight() * current_scale;
-
-    // Calculates the next scale level size of the parent tile
-    const next_xTSize = current_xTSize * next_scale;
-    const next_yTSize = current_yTSize * next_scale;
-    //console.log(next_xTSize);
-    //console.log(next_yTSize);
-
-    // [left, top, right, bottom] => [0, 0, tile width, tile height]
-    // [0, 0, 0, 0]
-    const initial_window = [ origin, origin, origin, origin ];
+    // window -> [left, top, right, bottom] 
+    const initial_window = [ 0, 0, 0, 0 ];
     let current_window = initial_window;
 
     let numRows: number;
@@ -119,6 +105,8 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
             start = i;
         }
         else if(counterA % 2 == 0){
+            displacement = i - start;
+
             const geotiffdoc: GeoTIFFDoc = {
                 row_window: `${start} - ${i}`,
                 children: current_ArrayA
@@ -167,7 +155,6 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
             }
 
             current_window = [j, i, right_boundary, bottom_boundary];
-            //console.log("Current Window: " + current_window);
             
             try{
                 // read the specific block of data from the window
@@ -215,7 +202,6 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
                 row_window: `${start} - ${right_boundary}`,
                 children: current_ArrayA
             }
-            // push to the Wrapper Array (3D)
             wrapper.push(geotiffdoc);
         }
 
@@ -230,8 +216,10 @@ async function createTheTileArray(image: any, n = 0): Promise<any> {
     }
 
     // print the final wrapped Document
-    console.log(wrapper);
-    console.log(wrapper.length);
+    //console.log(wrapper);
+    //console.log(wrapper.length);
+
+    return wrapper;
 }
 
  /**
@@ -243,23 +231,60 @@ async function run(url: string){
         const arrayBuffer = await response.arrayBuffer();
         const tiff = await fromArrayBuffer(arrayBuffer);
         //console.log(tiff);
-        const imageCount = await tiff.getImageCount();
+        //const imageCount = await tiff.getImageCount();
         //console.log(imageCount);
         const image = await tiff.getImage();
         //console.log(image);
 
-        const samplesPerPixel = image.getSamplesPerPixel();
+        //const samplesPerPixel = image.getSamplesPerPixel();
         //console.log(samplesPerPixel);
 
         const istiled = isTiled(image);
 
+        let masterDoc: MasterDocument = {};
+        let gt_doc: GeoTIFFDoc[] = [];
+
+        let cont = true;
+
         // window = [ left , top , right , bottom ]
         // bbox = [ min Longitude , min Latitude , max Longitude , max Latitude ]
-        //const bbox = image.getBoundingBox();
-        //console.log(bbox);
+        // const bbox = image.getBoundingBox();
+        // console.log(bbox);
 
         if(!istiled){
-            await createTheTileArray(image);
+
+            const max_Height: number = image.getHeight();
+            const max_Width: number = image.getWidth();
+
+            // First iteration it is 0
+            let n: number = 0;
+            const current_scale = Math.pow(2, n);
+
+            // TODO: Fix later
+            
+
+            while(cont){
+
+                const current_scale = Math.pow(2, n);
+
+                const current_xTSize = image.getTileHeight() * current_scale;
+                const current_yTSize = image.getTileHeight() * current_scale;
+
+                if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
+                    gt_doc = await createTheTileArray(image, current_xTSize, current_yTSize);
+                    masterDoc[`${current_yTSize}` + 'x' + `${current_xTSize}`] = gt_doc;
+                }
+                else{
+                    // end tiling and get whole image then end while loop
+                    gt_doc = await createTheTileArray(image, max_Width, max_Height);
+                    masterDoc[`${max_Height}` + 'x' + `${max_Width}`] = gt_doc;
+                    cont = false;
+                }
+                n += 1;
+            }
+            
+            console.log(masterDoc);
+            
         }
 
     }catch(e){
