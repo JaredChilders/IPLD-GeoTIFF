@@ -22,6 +22,7 @@
     "typescript": "^4.1.5"
   },
   "dependencies": {
-    "@textile/powergate-client": "^4.0.0"
+    "@textile/powergate-client": "^4.0.0",
+    "decimal.js": "^10.2.1"
   }
 }

@@ -1,7 +1,8 @@
 import { fromUrl, fromFile, fromUrls, fromArrayBuffer, fromBlob } from 'geotiff';
-import * as GeoTIFF from 'geotiff';
+//import type { GeoTIFF } from 'geotiff';
+//import * as GeoTIFF from 'geotiff';
 import fetch from 'cross-fetch';
-import { GeoUtils } from './utils/geo-utils'
+import { GeoUtils, ImageMetadata } from './utils/geo-utils'
 import { Powergate } from './powergate'
 //import Block from '@ipld/block/defaults';
 
@@ -59,14 +60,14 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
     const initial_window = [ 0, 0, 0, 0 ];
     let current_window = initial_window;
 
-    let numRows: number;
-    let numCols: number;
+    let numRows: number = 0;
+    let numCols: number = 0;
 
     let right_boundary: number = 0;
     let bottom_boundary: number = 0;
 
-    let counterA = 0;
-    let counterB = 0;
+    let counterA: number = 0;
+    let counterB: number = 0;
 
     let start: number = 0;
 
@@ -105,7 +106,6 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
             start = i;
         }
         else if(counterA % 2 == 0){
-            displacement = i - start;
 
             const geotiffdoc: GeoTIFFDoc = {
                 row_window: `${start} - ${i}`,
@@ -212,7 +212,7 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
         //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA.length);
         //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA);
 
-       //console.log(current_ArrayA);
+       console.log(current_ArrayA);
     }
 
     // print the final wrapped Document
@@ -220,6 +220,27 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
     //console.log(wrapper.length);
 
     return wrapper;
+}
+
+function converge(image: any) {
+    const bbox = image.getBoundingBox();
+    
+}
+
+async function getImageFromUrl(url: string): Promise<any>{
+    try{
+        const response = await fetch(url);
+        const arrayBuffer = await response.arrayBuffer();
+        const tiff = await fromArrayBuffer(arrayBuffer);
+        //console.log(tiff);
+        //const imageCount = await tiff.getImageCount();
+        //console.log(imageCount);
+        const image = await tiff.getImage();
+        return image;
+    }
+    catch(e){
+        throw e;
+    }
 }
 
  /**
@@ -258,10 +279,6 @@ async function run(url: string){
 
             // First iteration it is 0
             let n: number = 0;
-            const current_scale = Math.pow(2, n);
-
-            // TODO: Fix later
-            
 
             while(cont){
 
@@ -292,10 +309,23 @@ async function run(url: string){
     }
 }
 
+async function testWtoB(url = 'http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif'){
+    const request = [ -22493, 3224973.143255847, 1258.211624949061, 3255884.5438021915];
+    try{
+        const image = await getImageFromUrl(url)
+        const result: ImageMetadata =  await GeoUtils.bboxtoWindow(image, request);
+        console.log(result);
+    }catch(e){
+        console.log(e)
+    }
+    
+}
+
 function main(){
     //console.log(GeoTIFF);
     //let pool = new GeoTIFF.Pool();
-    run('http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif');
+    testWtoB();
+    //run('http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif');
     //run('https://download.osgeo.org/geotiff/samples/made_up/bogota.tif');
     //run('https://download.osgeo.org/geotiff/samples/made_up/lcc-datum.tif');
     //run('https://download.osgeo.org/geotiff/samples/made_up/ntf_nord.tif');
