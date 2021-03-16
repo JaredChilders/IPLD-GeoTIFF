@@ -9,13 +9,13 @@ export interface Tile {
     tileSize: TileSize;
 }
 
-export interface MasterDocument {
-    [key: string]: GeoTIFFDoc[];
-}
-
 export interface GeoTIFFDoc {
     row_window: string;
     children: Tile[][];
+}
+
+export interface GeoTIFFDocument {
+    [key: string]: Tile[][]
 }
 
 export interface ImageMetadata{

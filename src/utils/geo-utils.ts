@@ -23,33 +23,30 @@ export class GeoUtils{
     // TODO: figure out which pixel corresponds to a given latitude and longitude <Completed>
     // window = [ left , top , right , bottom ]
     // bbox = [ min Longitude < -180 to 180 > , min Latitude < -90 to 90 >, max Longitude < -90 to 90 >, max Latitude ]
-    static async bboxtoWindow(image: any, _request_bbox: Array<number>): Promise<ImageMetadata>{
-        const _bbox = image.getBoundingBox();
+    static async bboxtoWindow(i_window: Array<number>, _bbox: Array<number>, _request_bbox: Array<number>): Promise<ImageMetadata>{
 
-        const _width = image.getWidth();
-        const _height = image.getHeight();
+        const _width = i_window[2];
+        const _height = i_window[3];
 
         const bboxWidth = _bbox[ 2 ] - _bbox[ 0 ];
         const bboxHeight = _bbox[ 3 ] - _bbox[ 1 ];
-
-        const o_window = [0 , 0, _width, _height];
         
-        let i_window: Array<number> = [];
+        let o_window: Array<number> = [];
 
         try{
             let i: number = 0;
             await _bbox.forEach((element: number) => { 
                 if((i % 2) == 0){
                     if((_request_bbox[i] < _bbox[0]) || (_request_bbox[i] > _bbox[2])) throw new Error(`Coordinate ${_request_bbox[i]}` + ' is not within the bounding box. Please enter correct bounding box coordinates.')
-                    else i_window.push(Math.abs(Math.floor( _width * ((_request_bbox[0] - element) / bboxWidth))));
+                    else o_window.push(Math.abs(Math.floor( _width * ((_request_bbox[0] - element) / bboxWidth))));
                 }else{
                     if((_request_bbox[i] < _bbox[1]) || (_request_bbox[i] > _bbox[3])) throw new Error(`Coordinate  ${_request_bbox[i]}` + ' is not within the bounding box. Please enter correct bounding box coordinates.')
-                    else i_window.push(Math.abs(Math.floor( _height * ((_request_bbox[1] - element) / bboxHeight))));
+                    else o_window.push(Math.abs(Math.floor( _height * ((_request_bbox[1] - element) / bboxHeight))));
                 } 
                 i+=1; 
             })
         }catch(e){ throw e; }
         
-        return {o_window: o_window, i_window: i_window, o_bbox: _bbox, i_bbox: _request_bbox}
+        return {i_window: i_window, o_window: o_window, i_bbox: _bbox, o_bbox: _request_bbox}
     }
 }

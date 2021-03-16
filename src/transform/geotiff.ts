@@ -2,7 +2,7 @@ import { fromUrl, fromFile, fromUrls, fromArrayBuffer, fromBlob } from 'geotiff'
 import fetch from 'cross-fetch';
 import { GeoUtils } from '../utils/geo-utils'
 import { Powergate } from '../pin/powergate'
-import { Tile, MasterDocument, GeoTIFFDoc, IResponse } from '../interfaces/interfaces'
+import { Tile, GeoTIFFDoc, IResponse, ImageMetadata } from '../interfaces/interfaces'
 
 function isTiled(image: any): boolean {
     const tileWidth = image.getTileWidth();
@@ -69,7 +69,7 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
         else if(counterA % 2 == 0){
 
             const geotiffdoc: GeoTIFFDoc = {
-                row_window: `${start} - ${i}`,
+                row_window: `${start} - ${i - 1}`,
                 children: current_ArrayA
             }
             // push to the Wrapper Array (3D)
@@ -119,10 +119,10 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
             
             try{
                 const tile_data = await image.readRasters({ window: current_window });
-                const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
-                const cid = await powergate.getAssetCid(buffer);
+                //const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
+                //const cid = await powergate.getAssetCid(buffer);
 
-                await powergate.pin(cid);
+                //await powergate.pin(cid);
 
                 // array of tiles 
                 const tile: Tile = {
@@ -148,7 +148,7 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
         // Edge case for Rows, needs to push itself
         if(endingA == true){
             const geotiffdoc: GeoTIFFDoc = {
-                row_window: `${start} - ${right_boundary}`,
+                row_window: `${start}-${right_boundary}`,
                 children: current_ArrayA
             }
             wrapper.push(geotiffdoc);
@@ -196,7 +196,7 @@ async function startTile(image: any): Promise<IResponse>{
 
         const istiled = isTiled(image);
 
-        let masterDoc: MasterDocument = {};
+        let masterDoc = new Map<string, GeoTIFFDoc[]>();
 
         let cont = true;
 
@@ -250,21 +250,48 @@ async function startTile(image: any): Promise<IResponse>{
     return ires;
 }
 
-async  function getGeoTIFF(cid: string, targetArea: Array<any>, token: string): Promise<ArrayBuffer>{
+async  function getGeoTIFF(_cid: string, _token: string, _window: Array<number>, _bbox: Array<number>, _targetArea: Array<any>, ): Promise<any>{
+    let masterDoc = new Map<string, GeoTIFFDoc[]>(); 
+    
     try{
-        const powergate = await Powergate.build(token);
-        const doc = await powergate.getGeoDIDDocument(cid);
+        const powergate = await Powergate.build(_token);
+        const bytes = await powergate.getGeoDIDDocument(_cid);
+        const strj = new TextDecoder('utf-8').decode(bytes);
+        if(typeof(strj) == 'string') masterDoc = JSON.parse(strj)
+        else throw new Error('Error')
 
-        GeoUtils.bboxtoWindow(image);
-        // convert to windows 
-        if(doc) {
-            // find the data
-        }
+        const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(_window, _bbox, _targetArea);
+
+        const target_Width = targetWindow.o_window[2] - targetWindow.o_window[0];
+        const target_Height = targetWindow.o_window[3] - targetWindow.o_window[1];
+
+        masterDoc.forEach((value: any, key: string)=> {
+            const wxh = key.split('x');
+            const width = parseInt(wxh[0], 10);
+            const height = parseInt(wxh[2], 10);
+
+            if(target_Height <= height){
+                
+                for(let i = 0; i < value.length(); i++){
+                    const wop = value[i].row_window.split('-');
+                    const height_top = parseInt(wop[1], 10);
+                    const height_bot = parseInt(wop[3], 10);
+
+                    if((targetWindow.i_window[1] >= height_top) || (targetWindow.i_window[3] <= height_bot)){
+                        console.log(value[i].children)
+                    }
+                    else {
+                        console.log(value[i].children)
+                    }
+                }
+            }
+
+        })
     }catch(err){
         throw err; 
     }
 
-    return arrayBuffer;
+    return "yo";
 }
 
 async function main(){
@@ -282,7 +309,7 @@ async function main(){
         const image = await getImageFromUrl(url)
         const ires: IResponse =  await startTile(image);
 
-        await getGeoTIFF(ires.cid, request, ires.token);
+        await getGeoTIFF(ires.cid, ires.token, ires.window, ires.bbox, request);
     }catch(err){
         console.log(err)
     }
