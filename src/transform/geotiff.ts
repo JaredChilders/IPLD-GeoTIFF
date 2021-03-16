@@ -1,44 +1,8 @@
 import { fromUrl, fromFile, fromUrls, fromArrayBuffer, fromBlob } from 'geotiff';
-//import type { GeoTIFF } from 'geotiff';
-//import * as GeoTIFF from 'geotiff';
 import fetch from 'cross-fetch';
-import { GeoUtils, ImageMetadata } from './utils/geo-utils'
-import { Powergate } from './powergate'
-//import Block from '@ipld/block/defaults';
-
-/**
- * TODO:
- * 1) Convert Uint8Array to Blob.
- * 2) Push Blob to IPFS and get CID from it.
- * 3) Populate Tile Object 
- * 3) Encode Blob with IPLD, turning it into a CID.
- * 3) 
- */
-
-interface TileSize {
-    width: number;
-    height: number;
-}
-
-interface Tile {
-    cid?: string;
-    window: string;
-    tileSize: TileSize;
-}
-
-// [key] -> 
-interface MasterDocument {
-    [key: string]: GeoTIFFDoc[];
-}
-
-interface GeoTIFFDoc {
-    row_window: string;
-    children: Tile[][];
-}
-
-interface EncodeData {
-    data: Blob;
-}
+import { GeoUtils } from '../utils/geo-utils'
+import { Powergate } from '../pin/powergate'
+import { Tile, MasterDocument, GeoTIFFDoc, IResponse } from '../interfaces/interfaces'
 
 function isTiled(image: any): boolean {
     const tileWidth = image.getTileWidth();
@@ -47,11 +11,7 @@ function isTiled(image: any): boolean {
     return (tileWidth == tileHeight) ? true : false;
 }
 
-async function createTheTileArray(image: any, current_xTSize: number, current_yTSize: number): Promise<GeoTIFFDoc[]> {
-
-    //const powergate = await Powergate.build();
-    
-    // get token 
+async function createTheTileArray(image: any, powergate: Powergate, current_xTSize: number, current_yTSize: number): Promise<GeoTIFFDoc[]> {
 
     const rows: number = image.getHeight();
     const cols: number = image.getWidth();
@@ -99,7 +59,8 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
             endingA = true;
         }
 
-        // Genesis
+
+        // AAA Genesis
         if(counterA == 0){
             // initialize 2D array of Tile Interface
             current_ArrayA = new Array<Array<Tile>>();
@@ -157,19 +118,13 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
             current_window = [j, i, right_boundary, bottom_boundary];
             
             try{
-                // read the specific block of data from the window
                 const tile_data = await image.readRasters({ window: current_window });
-                //console.log(tile_data)
+                const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
+                const cid = await powergate.getAssetCid(buffer);
 
-                //const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
-                //console.log(buffer);
-
-                //const cid = await powergate.getAssetCid(buffer);
-
-                //await powergate.pin(cid);
+                await powergate.pin(cid);
 
                 // array of tiles 
-                
                 const tile: Tile = {
                     window: `${current_window}`,
                     tileSize: {
@@ -178,21 +133,15 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
                     }
                 }
 
-                // push the tiles to the tile Array
                 current_ArrayB.push(tile);
-
             }catch(e){
-                console.log(e);
+                throw(e);
             }
             
             // Edge case for Cols, needs to push itself for two scenarios
-            if((endingB == true) && ((counterA % 2) == 0)){
-                current_ArrayA.push(current_ArrayB); // bug
-            }
-            else if((endingB == true) && ((counterA % 2) != 0)){
-                current_ArrayA[index] = current_ArrayB;
-            }
-
+            if((endingB == true) && ((counterA % 2) == 0)) current_ArrayA.push(current_ArrayB); 
+            else if((endingB == true) && ((counterA % 2) != 0)) current_ArrayA[index] = current_ArrayB;
+            
             counterB += 1;
         }
 
@@ -207,24 +156,9 @@ async function createTheTileArray(image: any, current_xTSize: number, current_yT
 
         right_boundary = 0; // reset the right boundary 
         counterB = 0;
-        counterA += 1; // increment counter A 
-
-        //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA.length);
-        //if((counterA % 2 == 0) && (counterA != 0)) console.log(current_ArrayA);
-
-       console.log(current_ArrayA);
+        counterA += 1; // increment counter A
     }
-
-    // print the final wrapped Document
-    //console.log(wrapper);
-    //console.log(wrapper.length);
-
     return wrapper;
-}
-
-function converge(image: any) {
-    const bbox = image.getBoundingBox();
-    
 }
 
 async function getImageFromUrl(url: string): Promise<any>{
@@ -232,9 +166,6 @@ async function getImageFromUrl(url: string): Promise<any>{
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
         const tiff = await fromArrayBuffer(arrayBuffer);
-        //console.log(tiff);
-        //const imageCount = await tiff.getImageCount();
-        //console.log(imageCount);
         const image = await tiff.getImage();
         return image;
     }
@@ -246,36 +177,36 @@ async function getImageFromUrl(url: string): Promise<any>{
  /**
   * based on the 
   */
-async function run(url: string){
-    try{
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const tiff = await fromArrayBuffer(arrayBuffer);
-        //console.log(tiff);
-        //const imageCount = await tiff.getImageCount();
-        //console.log(imageCount);
-        const image = await tiff.getImage();
-        //console.log(image);
+async function startTile(image: any): Promise<IResponse>{
 
-        //const samplesPerPixel = image.getSamplesPerPixel();
-        //console.log(samplesPerPixel);
+    let ires: IResponse = {
+        cid: '',
+        token: '',
+        window: [],
+        bbox: []
+    }
+
+    try{
+        
+        const powergate = await Powergate.build();
+        ires.token = await powergate.getToken();
+
+        const max_Height: number = image.getHeight();
+        const max_Width: number = image.getWidth();
 
         const istiled = isTiled(image);
 
         let masterDoc: MasterDocument = {};
-        let gt_doc: GeoTIFFDoc[] = [];
 
         let cont = true;
 
         // window = [ left , top , right , bottom ]
+        ires.window = [0, 0, max_Width, max_Height];
+
         // bbox = [ min Longitude , min Latitude , max Longitude , max Latitude ]
-        // const bbox = image.getBoundingBox();
-        // console.log(bbox);
+        ires.bbox = image.getBoundingBox();
 
         if(!istiled){
-
-            const max_Height: number = image.getHeight();
-            const max_Width: number = image.getWidth();
 
             // First iteration it is 0
             let n: number = 0;
@@ -288,43 +219,75 @@ async function run(url: string){
                 const current_yTSize = image.getTileHeight() * current_scale;
 
                 if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
-                    gt_doc = await createTheTileArray(image, current_xTSize, current_yTSize);
+                    let gt_doc: GeoTIFFDoc[] = await createTheTileArray(image, powergate, current_xTSize, current_yTSize);
                     masterDoc[`${current_yTSize}` + 'x' + `${current_xTSize}`] = gt_doc;
                 }
                 else{
                     // end tiling and get whole image then end while loop
-                    gt_doc = await createTheTileArray(image, max_Width, max_Height);
+                    let gt_doc: GeoTIFFDoc[] = await createTheTileArray(image, powergate, max_Width, max_Height);
                     masterDoc[`${max_Height}` + 'x' + `${max_Width}`] = gt_doc;
                     cont = false;
                 }
                 n += 1;
             }
+
+            const stringdoc = JSON.stringify(masterDoc);
+            const uint8array = new TextEncoder().encode(stringdoc);
+            const buffer: Buffer = await GeoUtils.toBuffer(uint8array);
+
+            const _cid = await powergate.getAssetCid(buffer);
+
+            ires.cid = _cid;
+
+            await powergate.pin(_cid);
             
             console.log(masterDoc);
-            
         }
-
     }catch(e){
-        console.log(e);
+        throw e;
     }
+
+    return ires;
 }
 
-async function testWtoB(url = 'http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif'){
-    const request = [ -22493, 3224973.143255847, 1258.211624949061, 3255884.5438021915];
+async  function getGeoTIFF(cid: string, targetArea: Array<any>, token: string): Promise<ArrayBuffer>{
+    try{
+        const powergate = await Powergate.build(token);
+        const doc = await powergate.getGeoDIDDocument(cid);
+
+        GeoUtils.bboxtoWindow(image);
+        // convert to windows 
+        if(doc) {
+            // find the data
+        }
+    }catch(err){
+        throw err; 
+    }
+
+    return arrayBuffer;
+}
+
+async function main(){
+    //let pool = new GeoTIFF.Pool();
+    const url = 'http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif';
+
+    const request = [
+        -28493.166784412522,
+        4224973.143255847,
+        2358.211624949061,
+        4255884.5438021915
+    ];
+
     try{
         const image = await getImageFromUrl(url)
-        const result: ImageMetadata =  await GeoUtils.bboxtoWindow(image, request);
-        console.log(result);
-    }catch(e){
-        console.log(e)
-    }
-    
-}
+        const ires: IResponse =  await startTile(image);
 
-function main(){
-    //console.log(GeoTIFF);
-    //let pool = new GeoTIFF.Pool();
-    testWtoB();
+        await getGeoTIFF(ires.cid, request, ires.token);
+    }catch(err){
+        console.log(err)
+    }
+
+
     //run('http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif');
     //run('https://download.osgeo.org/geotiff/samples/made_up/bogota.tif');
     //run('https://download.osgeo.org/geotiff/samples/made_up/lcc-datum.tif');

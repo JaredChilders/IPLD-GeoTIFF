@@ -20,8 +20,8 @@ export class Powergate{
     }
 
     static async build(tokenval?: string): Promise<Powergate> {
-        const host: string = "http://0.0.0.0:6002"
-        //const host = 'http://13.82.150.65:6002';
+        //const host: string = "http://0.0.0.0:6002"
+        const host = 'http://13.82.150.65:6002';
         const pow: Pow = createPow({ host });
         if (tokenval) {
             pow.setAdminToken(tokenval);
@@ -52,7 +52,7 @@ export class Powergate{
         }
     }
 
-    async getToken(): Promise<any> {
+    async getToken(): Promise<string> {
         return this._token;
     }
 
