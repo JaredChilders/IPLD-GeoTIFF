@@ -6,6 +6,7 @@ export interface TileSize {
 export interface Tile {
     cid?: string;
     window: string;
+    block: any;
     tileSize: TileSize;
 }
 

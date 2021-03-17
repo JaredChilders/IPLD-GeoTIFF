@@ -1,2 +1,2 @@
-declare module 'geotiff';
-declare module '@ipld/block/defaults';
+declare module "geotiff";
+declare module "ipld-block";

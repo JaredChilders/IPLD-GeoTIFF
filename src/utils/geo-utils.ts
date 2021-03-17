@@ -1,5 +1,9 @@
 import {Decimal} from 'decimal.js';
-import { ImageMetadata} from '../interfaces/interfaces'
+import { ImageMetadata} from '../interfaces/interfaces';
+import CID from 'cids';
+import multihashing from 'multihashing-async';
+
+//const multihashing = require('multihashing-async')
 
 export class GeoUtils{
     static async toBuffer(ab: ArrayBuffer): Promise<Buffer> {
@@ -18,6 +22,16 @@ export class GeoUtils{
             view[i] = buf[i];
         }
         return ab;
+    }
+
+    static async getCID(bytes: any): Promise<CID>{
+        try{
+            const hash = await multihashing(bytes, 'sha2-256')
+            const cid: CID = new CID(1, 'dag-cbor', hash)
+            return cid
+        } catch(e){
+            throw e;
+        }
     }
 
     // TODO: figure out which pixel corresponds to a given latitude and longitude <Completed>

@@ -1,8 +1,19 @@
 import { fromUrl, fromFile, fromUrls, fromArrayBuffer, fromBlob } from 'geotiff';
+import * as GeoTIFF from 'geotiff';
 import fetch from 'cross-fetch';
 import { GeoUtils } from '../utils/geo-utils'
 import { Powergate } from '../pin/powergate'
+import Block from 'ipld-block'
 import { Tile, GeoTIFFDoc, IResponse, ImageMetadata } from '../interfaces/interfaces'
+
+const ora = require('ora');
+const cliSpinners = require('cli-spinners');
+
+const spinner = new ora({
+    discardStdin: false,
+    text: 'Tiling Image and Loading Overviews',
+    spinner: cliSpinners.dots
+});
 
 function isTiled(image: any): boolean {
     const tileWidth = image.getTileWidth();
@@ -11,8 +22,14 @@ function isTiled(image: any): boolean {
     return (tileWidth == tileHeight) ? true : false;
 }
 
-async function createTheTileArray(image: any, powergate: Powergate, current_xTSize: number, current_yTSize: number): Promise<GeoTIFFDoc[]> {
+interface Damage{
+    [key: string]: Array<any>;
+}
 
+async function createTheTileArray(image: any, powergate: Powergate, current_xTSize: number, current_yTSize: number): Promise<Map<any, any>> {
+
+    let pool = new GeoTIFF.Pool();
+    
     const rows: number = image.getHeight();
     const cols: number = image.getWidth();
 
@@ -32,7 +49,10 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
     let start: number = 0;
 
     // wrapper Array that we will use to wrap the currentArray
-    let wrapper: GeoTIFFDoc[] = [];
+    //let wrapper: GeoTIFFDoc[] = [];
+
+    //let damage: Damage = {};
+    let damage = new Map<string, Array<any>>();
 
     // declare current_ArrayA
     let current_ArrayA : Array<Array<Tile>>;
@@ -43,7 +63,8 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
     let index: number = 0;
     let info: number = 0;
 
-    let endingA: boolean = false;
+    let endingA: boolean = false; 
+    //spinner.start();
     
     // i acts as the "top" boundary variable in the window
     for(let i = 0; i < rows; i += current_yTSize){
@@ -68,12 +89,9 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
         }
         else if(counterA % 2 == 0){
 
-            const geotiffdoc: GeoTIFFDoc = {
-                row_window: `${start} - ${i - 1}`,
-                children: current_ArrayA
-            }
-            // push to the Wrapper Array (3D)
-            wrapper.push(geotiffdoc);
+            const row_window: string = `${start}-${i - 1}`;
+
+            damage.set(row_window, current_ArrayA)
 
             // refresh the indexes
             start = i;
@@ -118,15 +136,20 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
             current_window = [j, i, right_boundary, bottom_boundary];
             
             try{
-                const tile_data = await image.readRasters({ window: current_window });
+                const tile_data = await image.readRasters({ window: current_window, pool: pool });
                 //const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
-                //const cid = await powergate.getAssetCid(buffer);
+                console.log("\n");
 
-                //await powergate.pin(cid);
+                // encode the tile data, then convert to CID
+                const cid = await GeoUtils.getCID(tile_data[0]);
+                const block = new Block(tile_data[0], cid);
+                console.log(block);
 
                 // array of tiles 
                 const tile: Tile = {
                     window: `${current_window}`,
+                    cid: `${block.cid}`,
+                    block: block,
                     tileSize: {
                         width: tile_data.width,
                         height: tile_data.height
@@ -135,6 +158,8 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
 
                 current_ArrayB.push(tile);
             }catch(e){
+                spinner.clear();
+                spinner.fail(e.toString());
                 throw(e);
             }
             
@@ -147,18 +172,16 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
 
         // Edge case for Rows, needs to push itself
         if(endingA == true){
-            const geotiffdoc: GeoTIFFDoc = {
-                row_window: `${start}-${right_boundary}`,
-                children: current_ArrayA
-            }
-            wrapper.push(geotiffdoc);
+            const row_window: string = `${start}-${right_boundary - 1}`;
+            
+            damage.set(row_window, current_ArrayA);
         }
 
         right_boundary = 0; // reset the right boundary 
         counterB = 0;
         counterA += 1; // increment counter A
     }
-    return wrapper;
+    return damage;
 }
 
 async function getImageFromUrl(url: string): Promise<any>{
@@ -196,7 +219,8 @@ async function startTile(image: any): Promise<IResponse>{
 
         const istiled = isTiled(image);
 
-        let masterDoc = new Map<string, GeoTIFFDoc[]>();
+        let masterDoc2 = new Map<string, GeoTIFFDoc[]>();
+        let masterDoc = new Map<string, Map<any,any>>();
 
         let cont = true;
 
@@ -219,31 +243,42 @@ async function startTile(image: any): Promise<IResponse>{
                 const current_yTSize = image.getTileHeight() * current_scale;
 
                 if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
-                    let gt_doc: GeoTIFFDoc[] = await createTheTileArray(image, powergate, current_xTSize, current_yTSize);
-                    masterDoc[`${current_yTSize}` + 'x' + `${current_xTSize}`] = gt_doc;
+                    let gt_doc: Map<any,any> = await createTheTileArray(image, powergate, current_xTSize, current_yTSize);
+                    masterDoc.set(`${current_yTSize}` + 'x' + `${current_xTSize}`, gt_doc)
                 }
                 else{
                     // end tiling and get whole image then end while loop
-                    let gt_doc: GeoTIFFDoc[] = await createTheTileArray(image, powergate, max_Width, max_Height);
-                    masterDoc[`${max_Height}` + 'x' + `${max_Width}`] = gt_doc;
+                    let gt_doc: Map<any,any> = await createTheTileArray(image, powergate, max_Width, max_Height);
+                    masterDoc.set(`${max_Height}` + 'x' + `${max_Width}`, gt_doc)
                     cont = false;
                 }
                 n += 1;
+                console.log(" NEW SCALE \n")
             }
 
             const stringdoc = JSON.stringify(masterDoc);
-            const uint8array = new TextEncoder().encode(stringdoc);
-            const buffer: Buffer = await GeoUtils.toBuffer(uint8array);
+            const bytes = new TextEncoder().encode(stringdoc);
+            //const buffer: Buffer = await GeoUtils.toBuffer(uint8array);
 
-            const _cid = await powergate.getAssetCid(buffer);
+            //
+            //const _cid = await powergate.getAssetCid(buffer);
 
-            ires.cid = _cid;
+            const _cid = await GeoUtils.getCID(bytes);
+            const block = new Block(bytes, _cid);
+            console.log(block);
 
-            await powergate.pin(_cid);
+            ires.cid = block.cid;
+
+            await powergate.pin(block.cid);
+
+            spinner.clear();
+            spinner.succeed('Tiling was Successful');
             
             console.log(masterDoc);
         }
     }catch(e){
+        spinner.clear()
+        spinner.fail(e.toString());
         throw e;
     }
 
@@ -309,7 +344,7 @@ async function main(){
         const image = await getImageFromUrl(url)
         const ires: IResponse =  await startTile(image);
 
-        await getGeoTIFF(ires.cid, ires.token, ires.window, ires.bbox, request);
+        //await getGeoTIFF(ires.cid, ires.token, ires.window, ires.bbox, request);
     }catch(err){
         console.log(err)
     }
@@ -322,5 +357,3 @@ async function main(){
 }
 
 main();
-
-//run('https://storage.googleapis.com/pdd-stac/disasters/hurricane-harvey/0831/SkySat_Freeport_s03_20170831T162740Z.tif');

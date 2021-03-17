@@ -1,0 +1,105 @@
+fdsfs
+
+{
+    "512x512": {
+        "cid": "<CID of block>",
+        "256x256":{
+            "cid": "<CID of block>",
+            "128x128":{
+                "cid": "<CID of block>",
+                "64x64":{
+                    "cid": "<CID of block>",
+                    "32x32":{
+                        "cid":"<CID of block>"
+
+                    }
+                }
+            }
+        }
+    }
+}
+{
+    "Header":{
+
+    }
+}
+
+// encode the obj or encode the tile itself.
+
+// Figure C: This is the object for the Tile
+// The Blob will be the IPLD Node of the Tile data 
+{
+    "cid": "< CID computed with Serialized Blob >",
+    "window": [0,0,30,30],
+    "width": 30,
+    "height": 30,
+    "children": [
+        {
+            "data": [array],
+            "window": [0,0,15,15],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "data": [array],
+            "window": [0,0,15,15],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "data": [array],
+            "window": [0,0,15,15],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "data": [array],
+            "window": [0,0,15,15],
+            "width": 15,
+            "height": 15,
+        },
+    ]},
+
+    "cid": "< CID computed with Serialized Blob >",
+    "window": [0,0,30,30],
+    "width": 30,
+    "height": 30,
+    "children": [
+        {
+            "cid": "< CID computed with Serialized Blob >",
+            "window": [30,0,45,15],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "cid": "< CID computed with Serialized Blob >",
+            "window": [45,0,60,15],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "cid": "< CID computed with Serialized Blob >",
+            "window": [30,15,45,30],
+            "width": 15,
+            "height": 15,
+        },
+        {
+            "cid": "< CID computed with Serialized Blob >",
+            "window": [45,15,60,30],
+            "width": 15,
+            "height": 15,
+        },
+    ]   
+}
+
+// Encode the object represented in Figure C, in order to create 
+
+// populate object
+{
+    "data": [array],
+    "window": [0,0,15,15],
+    "width": 15,
+    "height": 15,
+}
+
+// encode it with DAG-CBOR
