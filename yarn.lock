@@ -9,6 +9,29 @@
   dependencies:
     browser-headers "^0.4.0"
 
+"@ipld/block@^6.0.4":
+  version "6.0.4"
+  resolved "https://registry.yarnpkg.com/@ipld/block/-/block-6.0.4.tgz#ffa03fedc111668b95408439ed950e1d109b9760"
+  integrity sha512-2g6SpxZLQBRaBWV8c+++9X+QUsNAdGFrFyDTDN1LUsssZn/lcUP+fpEb3nhRUEoVwkiySbA/MnTXO2YZ6QAtSw==
+  dependencies:
+    "@ipld/dag-cbor" "1.1.11"
+    class-is "^1.1.0"
+    lodash.transform "^4.6.0"
+    multiformats "^3.0.3"
+
+"@ipld/dag-cbor@1.1.11":
+  version "1.1.11"
+  resolved "https://registry.yarnpkg.com/@ipld/dag-cbor/-/dag-cbor-1.1.11.tgz#4ea49458612785b38f9fea7fd33cce9cfe2dfc31"
+  integrity sha512-Dkwi5MqJw58tZKu2i+PwsNRdBU1t76fWE8XchDfgWLbOVhrZJkiFskoveRlBBPWt23Sm4gZD92mGSpckuR60FA==
+  dependencies:
+    "@ipld/is-circular" "^1.0.3"
+    borc "^2.1.2"
+
+"@ipld/is-circular@^1.0.3":
+  version "1.0.3"
+  resolved "https://registry.yarnpkg.com/@ipld/is-circular/-/is-circular-1.0.3.tgz#f248972955a06ea9d5bb9b031af244c9c4e812a2"
+  integrity sha512-ic20mK4OZaTE6P+ShCkc+L3RegedjUwELeBxOpqgEuJMcQDjp4AS/dh3o3udDcM8q2zSEvc5q7Ex6pJzSuFWLQ==
+
 "@multiformats/base-x@^4.0.1":
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/@multiformats/base-x/-/base-x-4.0.1.tgz#95ff0fa58711789d53aefb2590a8b7a4e715d121"
@@ -341,6 +364,13 @@ balanced-match@^1.0.0:
   version "1.0.0"
   resolved "https://registry.yarnpkg.com/balanced-match/-/balanced-match-1.0.0.tgz#89b4d199ab2bee49de164ea02b89ce462d71b767"
   integrity sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
+
+base-x@^3.0.8:
+  version "3.0.8"
+  resolved "https://registry.yarnpkg.com/base-x/-/base-x-3.0.8.tgz#1e1106c2537f0162e8b52474a557ebb09000018d"
+  integrity sha512-Rl/1AWP4J/zRrk54hhlxH4drNxPJXYUaKffODVI53/dAsV4t9fBxyxYKAVPU1XBHxYwOWP9h9H0hM2MVw4YfJA==
+  dependencies:
+    safe-buffer "^5.0.1"
 
 base64-js@^1.3.1:
   version "1.5.1"
@@ -1666,6 +1696,11 @@ lazy-cache@^1.0.3:
   resolved "https://registry.yarnpkg.com/lazy-cache/-/lazy-cache-1.0.4.tgz#a1d78fc3a50474cb80845d3b3b6e1da49a446e8e"
   integrity sha1-odePw6UEdMuAhF07O24dpJpEbo4=
 
+lodash.transform@^4.6.0:
+  version "4.6.0"
+  resolved "https://registry.yarnpkg.com/lodash.transform/-/lodash.transform-4.6.0.tgz#12306422f63324aed8483d3f38332b5f670547a0"
+  integrity sha1-EjBkIvYzJK7YSD0/ODMrX2cFR6A=
+
 lodash@^4.11.1, lodash@^4.17.15:
   version "4.17.20"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.20.tgz#b44a9b6297bcb698f1c51a3545a2b3b368d59c52"
@@ -1893,6 +1928,16 @@ multicodec@^3.0.1:
   dependencies:
     uint8arrays "^2.1.3"
     varint "^5.0.2"
+
+multiformats@^3.0.3:
+  version "3.0.3"
+  resolved "https://registry.yarnpkg.com/multiformats/-/multiformats-3.0.3.tgz#c832a697e8f5046206a7fa1d89489a904fb3780f"
+  integrity sha512-3mZPFH5vNYj4VxQBWik5kqXFKFMHUpH4iJ0gdP6vF3+n1Wk5+BvasxXs3kO9K7pCwatkJ2G6bMAa8bruQpuYQg==
+  dependencies:
+    base-x "^3.0.8"
+    buffer "^5.6.0"
+    cids "^1.0.0"
+    varint "^5.0.0"
 
 multihashes@^3.0.1, multihashes@^3.1.0, multihashes@^3.1.2:
   version "3.1.2"

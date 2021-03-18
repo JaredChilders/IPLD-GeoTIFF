@@ -22,6 +22,7 @@
     "typescript": "^4.1.5"
   },
   "dependencies": {
+    "@ipld/block": "^6.0.4",
     "@textile/powergate-client": "^4.0.0",
     "body-parser": "^1.19.0",
     "cids": "^1.1.6",

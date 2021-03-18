@@ -22,11 +22,26 @@ function isTiled(image: any): boolean {
     return (tileWidth == tileHeight) ? true : false;
 }
 
-interface Damage{
+interface IWrapper{
     [key: string]: Array<any>;
 }
 
-async function createTheTileArray(image: any, powergate: Powergate, current_xTSize: number, current_yTSize: number): Promise<Map<any, any>> {
+interface IWrappedWrapper{
+    [key: string]: IWrapper;
+}
+
+function getMinMax(minMax: Array<number>, current_window: Array<number>){
+    let i: number = 0;
+    return minMax.forEach((element: any) => {
+        if((i==0) && ((current_window[i] < minMax[i]))) minMax[0] = current_window[i];
+        else if((i==1) && (current_window[i] < minMax[i])) minMax[1] = current_window[i];
+        else if((i==2) && (current_window[i] > minMax[i])) minMax[2] = current_window[i];
+        else if((i==3) && (current_window[i] > minMax[i])) minMax[3] = current_window[i];
+        i++;
+    });
+}
+
+async function createTheTileArray(image: any, powergate: Powergate, current_xTSize: number, current_yTSize: number): Promise<IWrapper> {
 
     let pool = new GeoTIFF.Pool();
     
@@ -48,11 +63,7 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
 
     let start: number = 0;
 
-    // wrapper Array that we will use to wrap the currentArray
-    //let wrapper: GeoTIFFDoc[] = [];
-
-    //let damage: Damage = {};
-    let damage = new Map<string, Array<any>>();
+    let damage: IWrapper = {}
 
     // declare current_ArrayA
     let current_ArrayA : Array<Array<Tile>>;
@@ -80,22 +91,23 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
             endingA = true;
         }
 
-
         // AAA Genesis
         if(counterA == 0){
             // initialize 2D array of Tile Interface
             current_ArrayA = new Array<Array<Tile>>();
+
             start = i;
         }
         else if(counterA % 2 == 0){
 
             const row_window: string = `${start}-${i - 1}`;
 
-            damage.set(row_window, current_ArrayA)
+            damage[row_window] = current_ArrayA;
 
             // refresh the indexes
             start = i;
             index = 0;
+
             // initialize a new Array for the next 2 Rows
             current_ArrayA = new Array<Array<Tile>>();
         }
@@ -116,6 +128,9 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
                 endingB = true;
             }
 
+            current_window = [j, i, right_boundary, bottom_boundary];
+
+            // second passthrough
             if((counterA % 2) != 0){
                 info = current_ArrayA.length;
  
@@ -123,8 +138,10 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
                 
                 if(index < info) current_ArrayB = current_ArrayA[index];
             } 
+            // first passthrough 
             else{
                 if(counterB == 0){
+                    // first run of first passthrough 
                     current_ArrayB = new Array<Tile>();
                 }
                 else if(((counterB % 2) == 0)){
@@ -132,31 +149,31 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
                     current_ArrayB = new Array<Tile>();
                 }
             }
-
-            current_window = [j, i, right_boundary, bottom_boundary];
             
             try{
                 const tile_data = await image.readRasters({ window: current_window, pool: pool });
                 //const buffer: Buffer = await GeoUtils.toBuffer(tile_data[0]);
-                console.log("\n");
+                //console.log("\n");
 
                 // encode the tile data, then convert to CID
                 const cid = await GeoUtils.getCID(tile_data[0]);
+
+                // not really needed tbh but you will need block later to encapsulate the data
                 const block = new Block(tile_data[0], cid);
-                console.log(block);
+                //console.log(block);
 
                 // array of tiles 
                 const tile: Tile = {
                     window: `${current_window}`,
-                    cid: `${block.cid}`,
-                    block: block,
+                    cid: block.cid,
                     tileSize: {
                         width: tile_data.width,
                         height: tile_data.height
                     }
                 }
 
-                current_ArrayB.push(tile);
+                current_ArrayB.push(tile); 
+
             }catch(e){
                 spinner.clear();
                 spinner.fail(e.toString());
@@ -164,23 +181,29 @@ async function createTheTileArray(image: any, powergate: Powergate, current_xTSi
             }
             
             // Edge case for Cols, needs to push itself for two scenarios
-            if((endingB == true) && ((counterA % 2) == 0)) current_ArrayA.push(current_ArrayB); 
-            else if((endingB == true) && ((counterA % 2) != 0)) current_ArrayA[index] = current_ArrayB;
-            
+            if((endingB == true) && ((counterA % 2) == 0)){
+                current_ArrayA.push(current_ArrayB); 
+            }
+            else if((endingB == true) && ((counterA % 2) != 0)){
+                current_ArrayA[index] = current_ArrayB;
+            }
             counterB += 1;
         }
 
         // Edge case for Rows, needs to push itself
         if(endingA == true){
             const row_window: string = `${start}-${right_boundary - 1}`;
-            
-            damage.set(row_window, current_ArrayA);
+            //onsole.log(current_ArrayA)
+            damage[row_window] = current_ArrayA;
         }
 
         right_boundary = 0; // reset the right boundary 
         counterB = 0;
         counterA += 1; // increment counter A
     }
+
+    //console.log(damage)
+
     return damage;
 }
 
@@ -190,6 +213,7 @@ async function getImageFromUrl(url: string): Promise<any>{
         const arrayBuffer = await response.arrayBuffer();
         const tiff = await fromArrayBuffer(arrayBuffer);
         const image = await tiff.getImage();
+
         return image;
     }
     catch(e){
@@ -205,9 +229,12 @@ async function startTile(image: any): Promise<IResponse>{
     let ires: IResponse = {
         cid: '',
         token: '',
+        max_Dimensions: [],
         window: [],
         bbox: []
     }
+
+    let masterDoc: IWrappedWrapper = {}
 
     try{
         
@@ -218,9 +245,6 @@ async function startTile(image: any): Promise<IResponse>{
         const max_Width: number = image.getWidth();
 
         const istiled = isTiled(image);
-
-        let masterDoc2 = new Map<string, GeoTIFFDoc[]>();
-        let masterDoc = new Map<string, Map<any,any>>();
 
         let cont = true;
 
@@ -242,39 +266,35 @@ async function startTile(image: any): Promise<IResponse>{
                 const current_xTSize = image.getTileHeight() * current_scale;
                 const current_yTSize = image.getTileHeight() * current_scale;
 
+                ires.max_Dimensions.push(current_xTSize);
+
                 if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
-                    let gt_doc: Map<any,any> = await createTheTileArray(image, powergate, current_xTSize, current_yTSize);
-                    masterDoc.set(`${current_yTSize}` + 'x' + `${current_xTSize}`, gt_doc)
+                    let block: IWrapper = await createTheTileArray(image, powergate, current_xTSize, current_yTSize);
+                    masterDoc[`${current_yTSize}` + 'x' + `${current_xTSize}`] = block;
                 }
                 else{
                     // end tiling and get whole image then end while loop
-                    let gt_doc: Map<any,any> = await createTheTileArray(image, powergate, max_Width, max_Height);
-                    masterDoc.set(`${max_Height}` + 'x' + `${max_Width}`, gt_doc)
+                    let block: IWrapper = await createTheTileArray(image, powergate, max_Width, max_Height);
+                    masterDoc[`${max_Height}` + 'x' + `${max_Width}`] = block;
                     cont = false;
                 }
                 n += 1;
-                console.log(" NEW SCALE \n")
+                //console.log(" NEW SCALE \n")
             }
 
             const stringdoc = JSON.stringify(masterDoc);
+
             const bytes = new TextEncoder().encode(stringdoc);
-            //const buffer: Buffer = await GeoUtils.toBuffer(uint8array);
 
-            //
-            //const _cid = await powergate.getAssetCid(buffer);
+            const _cid = await powergate.getAssetCid(bytes);
 
-            const _cid = await GeoUtils.getCID(bytes);
-            const block = new Block(bytes, _cid);
-            console.log(block);
+            ires.cid = _cid;
 
-            ires.cid = block.cid;
-
-            await powergate.pin(block.cid);
+            await powergate.pin(_cid);
 
             spinner.clear();
             spinner.succeed('Tiling was Successful');
             
-            console.log(masterDoc);
         }
     }catch(e){
         spinner.clear()
@@ -285,43 +305,40 @@ async function startTile(image: any): Promise<IResponse>{
     return ires;
 }
 
-async  function getGeoTIFF(_cid: string, _token: string, _window: Array<number>, _bbox: Array<number>, _targetArea: Array<any>, ): Promise<any>{
+async  function getGeoTIFF(_cid: string, _token: string, _targetWindow: ImageMetadata): Promise<any>{
     let masterDoc = new Map<string, GeoTIFFDoc[]>(); 
     
     try{
         const powergate = await Powergate.build(_token);
         const bytes = await powergate.getGeoDIDDocument(_cid);
         const strj = new TextDecoder('utf-8').decode(bytes);
-        if(typeof(strj) == 'string') masterDoc = JSON.parse(strj)
+        if(typeof(strj) == 'string') masterDoc = JSON.parse(strj); 
         else throw new Error('Error')
 
-        const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(_window, _bbox, _targetArea);
+        console.log(masterDoc);
 
-        const target_Width = targetWindow.o_window[2] - targetWindow.o_window[0];
-        const target_Height = targetWindow.o_window[3] - targetWindow.o_window[1];
+        const target_Width = _targetWindow.o_window[2] - _targetWindow.o_window[0]; 
+        const target_Height = _targetWindow.o_window[3] - _targetWindow.o_window[1]; 
 
         masterDoc.forEach((value: any, key: string)=> {
             const wxh = key.split('x');
             const width = parseInt(wxh[0], 10);
             const height = parseInt(wxh[2], 10);
 
-            if(target_Height <= height){
-                
-                for(let i = 0; i < value.length(); i++){
-                    const wop = value[i].row_window.split('-');
-                    const height_top = parseInt(wop[1], 10);
-                    const height_bot = parseInt(wop[3], 10);
+            if( (target_Height <= height) && (target_Width <= width) ){
+                //create selector to grab data
+                const mr = key.split('-');
+                const min_row = parseInt(mr[0], 10);
+                const max_row = parseInt(mr[2], 10);
 
-                    if((targetWindow.i_window[1] >= height_top) || (targetWindow.i_window[3] <= height_bot)){
-                        console.log(value[i].children)
-                    }
-                    else {
-                        console.log(value[i].children)
-                    }
+                if((_targetWindow.o_window[1] >= min_row) && (_targetWindow.o_window[3] <= max_row)){
+                    //for(let i = 0; i < value.`$`)
                 }
+                else throw new Error("Does not have compatible row");
             }
-
+            else throw new Error("Not Valid Size");
         })
+
     }catch(err){
         throw err; 
     }
@@ -344,7 +361,11 @@ async function main(){
         const image = await getImageFromUrl(url)
         const ires: IResponse =  await startTile(image);
 
-        //await getGeoTIFF(ires.cid, ires.token, ires.window, ires.bbox, request);
+        console.log(ires);
+
+        const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(ires.window, ires.bbox, request, ires.max_Dimensions);
+
+        const yo = await getGeoTIFF(ires.cid, ires.token, targetWindow);
     }catch(err){
         console.log(err)
     }

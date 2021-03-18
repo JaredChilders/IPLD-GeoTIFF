@@ -1,12 +1,13 @@
+import CID from 'cids';
+
 export interface TileSize {
     width: number;
     height: number;
 }
 
 export interface Tile {
-    cid?: string;
+    cid?: CID;
     window: string;
-    block: any;
     tileSize: TileSize;
 }
 
@@ -29,6 +30,7 @@ export interface ImageMetadata{
 export interface IResponse {
     cid: string;
     token: string;
+    max_Dimensions: Array<number>;
     window: Array<number>;
     bbox: Array<number>;
 }
