@@ -51,6 +51,22 @@ export class GeoUtils{
           }
     }
 
+    static async ipfsGet(ipfs: IPFS, cid: CID): Promise<any>{
+        try{
+            const block = await ipfs.block.get(cid.toString());
+            const _block = await Block.decoder(block.data, 'dag-cbor');
+            const data = await _block.decode();
+            console.log(block);
+            console.log(block.data)
+            console.log(data)
+            return block;
+        }catch(e){
+            console.log(e)
+            throw e;
+        }
+        
+    }
+
     // TODO: figure out which pixel corresponds to a given latitude and longitude <Completed>
     // window = [ left , top , right , bottom ]
     // bbox = [ min Longitude < -180 to 180 > , min Latitude < -90 to 90 >, max Longitude < -90 to 90 >, max Latitude ]

@@ -1,6 +1,7 @@
 import fetch from 'cross-fetch';
 import { IPFS, create } from 'ipfs'
 import { GeoUtils } from './utils/geo-utils';
+import CID from 'cids';
 import { Tile, IResponse, ImageMetadata, IWrapper, IWrappedWrapper, MasterWrapper, ITransport } from './interfaces/interfaces'
 
 const Block = require('@ipld/block/defaults');
@@ -32,20 +33,29 @@ async function getTransport(_ipfs: IPFS, _sizeArray: Array<Array<Tile>>, _minW: 
         for(let j = 0; j < _sizeArray[i].length; j++){
             wrapper[`${_sizeArray[i][j].window}`] = _sizeArray[i][j];
 
+            if((j == 0)){
+                bounding_Row[0] = _sizeArray[i][j].window[0];
+                bounding_Row[1] = _sizeArray[i][j].window[1];
+                bounding_Row[2] = _sizeArray[i][j].window[2]; 
+                bounding_Row[3] = _sizeArray[i][j].window[3];
+            }
+
             if((bounding_Row[0] > _sizeArray[i][j].window[0])) bounding_Row[0] = _sizeArray[i][j].window[0];
-            else if((bounding_Row[1] < _sizeArray[i][j].window[1])) bounding_Row[1] = _sizeArray[i][j].window[1];
+            else if((bounding_Row[1] > _sizeArray[i][j].window[1])) bounding_Row[1] = _sizeArray[i][j].window[1]; // min h
             else if((bounding_Row[2] < _sizeArray[i][j].window[2])) bounding_Row[2] = _sizeArray[i][j].window[2]; 
-            else if((bounding_Row[3] < _sizeArray[i][j].window[3])) bounding_Row[3] = _sizeArray[i][j].window[3]; 
+            else if((bounding_Row[3] < _sizeArray[i][j].window[3])) bounding_Row[3] = _sizeArray[i][j].window[3]; // min h
         }
     }
 
     const wrapperString = JSON.stringify(wrapper);
-
     const row_data = new Uint8Array(JSON.parse(wrapperString)).buffer
-
-    const cid = await GeoUtils.ipfsPin(_ipfs, row_data);
-
-    return { cid: cid, boundingRow: bounding_Row, wrapper: wrapper  }
+    
+    try{
+        const cid = await GeoUtils.ipfsPin(_ipfs, row_data);
+        return { cid: cid, boundingRow: bounding_Row, wrapper: wrapper  }
+    }catch(err){
+        throw err;
+    }
 }
 
 async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: number, current_yTSize: number): Promise<IWrappedWrapper> {
@@ -72,7 +82,6 @@ async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: numbe
 
     // declare current_ArrayA
     let current_ArrayA : Array<Array<Tile>>;
-    let wrapper: IWrapper = {}
 
     // declare current_ArrayB
     let current_ArrayB: Array<Tile>;
@@ -134,7 +143,6 @@ async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: numbe
 
             current_window = [j, i, right_boundary, bottom_boundary];
 
-            // second passthrough
             if((counterA % 2) != 0){
                 info = current_ArrayA.length;
  
@@ -142,10 +150,8 @@ async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: numbe
                 
                 if(index < info) current_ArrayB = current_ArrayA[index];
             } 
-            // first passthrough 
             else{
                 if(counterB == 0){
-                    // first run of first passthrough 
                     current_ArrayB = new Array<Tile>();
                 }
                 else if(((counterB % 2) == 0)){
@@ -172,7 +178,7 @@ async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: numbe
                     }
                 }
 
-                current_ArrayB.push(tile); 
+                current_ArrayB.push(tile);
 
             }catch(e){
                 spinner.clear();
@@ -220,13 +226,10 @@ async function getImageFromUrl(url: string): Promise<any>{
         throw e;
     }
 }
-
-
  
 async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
     let ires: IResponse = {
-        cid: '',
         token: '',
         max_Dimensions: [],
         window: [],
@@ -258,7 +261,7 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
             // First iteration it is 0
             
-            let n: number = 0;
+            let n: number = 4;
             
             while(cont){
 
@@ -269,6 +272,7 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
                 ires.max_Dimensions.push(current_xTSize);
 
+                // Also round to max size later
 
                 if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
                     let block: IWrappedWrapper = await createTheTileArray(_ipfs, image, current_xTSize, current_yTSize);
@@ -292,7 +296,7 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
             const _cid = await GeoUtils.ipfsPin(_ipfs, row_data);
 
-            ires.cid = _cid.toString();
+            ires.cid = _cid;
 
             spinner.clear();
             spinner.succeed('Tiling was Successful');
@@ -307,23 +311,24 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
     return ires;
 }
 
-/*
-async  function getGeoTIFF(_cid: string, _token: string, _targetWindow: ImageMetadata): Promise<any>{
-    let masterDoc = new Map<string, GeoTIFFDoc[]>(); 
+
+async  function getGeoTIFF(_ipfs: IPFS, _cid: CID, _targetWindow: ImageMetadata): Promise<any>{
+    let masterDoc = new Map<string, any>(); 
     
     try{
-        const powergate = await Powergate.build(_token);
-        const bytes = await powergate.getGeoDIDDocument(_cid);
-        const strj = new TextDecoder('utf-8').decode(bytes);
+        const strj = GeoUtils.ipfsGet(_ipfs, _cid)
+        console.log(strj);
+        //const strj = new TextDecoder('utf-8').decode(bytes);
+        /*
         if(typeof(strj) == 'string') masterDoc = JSON.parse(strj); 
         else throw new Error('Error')
 
-        console.log(masterDoc);
+        console.log(masterDoc);*/
 
         const target_Width = _targetWindow.o_window[2] - _targetWindow.o_window[0]; 
         const target_Height = _targetWindow.o_window[3] - _targetWindow.o_window[1]; 
 
-        
+        /*
         masterDoc.forEach((value: any, key: string)=> {
             const wxh = key.split('x');
             const width = parseInt(wxh[0], 10);
@@ -341,14 +346,14 @@ async  function getGeoTIFF(_cid: string, _token: string, _targetWindow: ImageMet
                 else throw new Error("Does not have compatible row");
             }
             else throw new Error("Not Valid Size");
-        })
+        })*/
 
     }catch(err){
         throw err; 
     }
 
     return "yo";
-}*/
+}
 
 async function main(){
     //let pool = new GeoTIFF.Pool();
@@ -364,14 +369,14 @@ async function main(){
     try{
         const ipfs: IPFS = await create();
         const image = await getImageFromUrl(url)
-        console.log(image)
         const ires: IResponse =  await startTile(ipfs, image);
 
         console.log(ires);
 
-        //const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(ires.window, ires.bbox, request, ires.max_Dimensions);
+        const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(ires.window, ires.bbox, request);
+        console.log(targetWindow);
 
-        //const yo = await getGeoTIFF(ires.cid, ires.token, targetWindow);
+        const yo = await getGeoTIFF(ipfs, ires.cid, targetWindow);
     }catch(err){
         console.log(err)
         throw err

@@ -1,9 +1,11 @@
+import CID from 'cids';
+
 export interface IWrapper{
     [key: string]: any;
 }
 
 export interface IWrappedWrapper{
-    [key: string]: any;
+    [key: string]: CID;
 }
 
 export interface MasterWrapper{
@@ -11,9 +13,9 @@ export interface MasterWrapper{
 }
 
 export interface ITransport{
-    cid: any
-    boundingRow: Array<number>
-    wrapper: IWrapper
+    cid: CID;
+    boundingRow: Array<number>;
+    wrapper: IWrapper;
 }
 
 export interface TileSize {
@@ -22,7 +24,7 @@ export interface TileSize {
 }
 
 export interface Tile {
-    cid?: any;
+    cid?: CID;
     data: any;
     window: Array<number>;
     tileSize: TileSize;
@@ -45,7 +47,7 @@ export interface ImageMetadata{
 }
 
 export interface IResponse {
-    cid: string;
+    cid?: CID;
     token: string;
     max_Dimensions: Array<number>;
     window: Array<number>;
