@@ -1,4 +1,20 @@
-import CID from 'cids';
+export interface IWrapper{
+    [key: string]: any;
+}
+
+export interface IWrappedWrapper{
+    [key: string]: any;
+}
+
+export interface MasterWrapper{
+    [key:string]: any;
+}
+
+export interface ITransport{
+    cid: any
+    boundingRow: Array<number>
+    wrapper: IWrapper
+}
 
 export interface TileSize {
     width: number;
@@ -6,8 +22,9 @@ export interface TileSize {
 }
 
 export interface Tile {
-    cid?: CID;
-    window: string;
+    cid?: any;
+    data: any;
+    window: Array<number>;
     tileSize: TileSize;
 }
 
@@ -34,3 +51,4 @@ export interface IResponse {
     window: Array<number>;
     bbox: Array<number>;
 }
+

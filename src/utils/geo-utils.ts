@@ -1,9 +1,9 @@
-import {Decimal} from 'decimal.js';
 import { ImageMetadata} from '../interfaces/interfaces';
+import { IPFS, create } from 'ipfs'
 import CID from 'cids';
 import multihashing from 'multihashing-async';
 
-//const multihashing = require('multihashing-async')
+const Block = require('@ipld/block/defaults');
 
 export class GeoUtils{
     static async toBuffer(ab: ArrayBuffer): Promise<Buffer> {
@@ -32,6 +32,23 @@ export class GeoUtils{
         } catch(e){
             throw e;
         }
+    }
+
+    static async ipfsPin(ipfs: IPFS, bytes: ArrayBufferLike): Promise<CID>{
+        try{
+            const block = await Block.encoder(bytes, 'dag-cbor');
+            const data = await block.encode();
+            const cid = await block.cid();
+
+            console.log(cid)
+        
+            await ipfs.block.put(data, { cid: cid.toString() })
+        
+            return cid;
+          }catch(e){
+            console.log(e)
+            throw e;
+          }
     }
 
     // TODO: figure out which pixel corresponds to a given latitude and longitude <Completed>
