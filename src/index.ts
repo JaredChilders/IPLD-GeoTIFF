@@ -39,8 +39,6 @@ async function getTransport(_ipfs: IPFS, _sizeArray: Array<Array<Tile>>, _minW: 
         }
     }
 
-    console.log(wrapper)
-
     const wrapperString = JSON.stringify(wrapper);
 
     const row_data = new Uint8Array(JSON.parse(wrapperString)).buffer
@@ -260,7 +258,7 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
             // First iteration it is 0
             
-            let n: number = 4;
+            let n: number = 0;
             
             while(cont){
 
