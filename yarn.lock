@@ -2714,6 +2714,15 @@ interface-datastore@^3.0.1, interface-datastore@^3.0.3:
     it-drain "^1.0.1"
     nanoid "^3.0.2"
 
+interface-ipld-format@^1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/interface-ipld-format/-/interface-ipld-format-1.0.0.tgz#8cd9b37363a3b7aee0b109f4fa55e89af31e20f8"
+  integrity sha512-/df/uHRUxE9LtTJaC1QAwgmHUjdVxvCvQKQLoMo2k4Ilu3uSob5vNmZqXXnuQQM4M5tZjyRbqMm+A+hvWbki8w==
+  dependencies:
+    cids "^1.1.6"
+    multicodec "^3.0.1"
+    multihashes "^4.0.2"
+
 ip-address@^6.1.0:
   version "6.4.0"
   resolved "https://registry.yarnpkg.com/ip-address/-/ip-address-6.4.0.tgz#8f7d43e76002a1c3c230792c748f5d8c143f908a"
@@ -3329,6 +3338,19 @@ ipld-dag-cbor@^0.17.0:
     multicodec "^2.0.0"
     multihashing-async "^2.0.0"
     uint8arrays "^1.0.0"
+
+ipld-dag-cbor@^0.18.0:
+  version "0.18.0"
+  resolved "https://registry.yarnpkg.com/ipld-dag-cbor/-/ipld-dag-cbor-0.18.0.tgz#37ff0a4819692cfd5885a479d4f349dddd840af1"
+  integrity sha512-vr5X6MCuDW0pYHD9/PbMwS6naXeHzjGv7BWsjXz5ebBANzQzOGO4vRHPxbHEAlL8KWiXuCfSiwoJUHlHav209Q==
+  dependencies:
+    borc "^2.1.2"
+    cids "^1.0.0"
+    interface-ipld-format "^1.0.0"
+    is-circular "^1.0.2"
+    multicodec "^3.0.1"
+    multihashing-async "^2.0.0"
+    uint8arrays "^2.1.3"
 
 ipld-dag-pb@^0.20.0:
   version "0.20.0"

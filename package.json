@@ -26,6 +26,7 @@
     "compression": "^1.7.4",
     "decimal.js": "^10.2.1",
     "ipfs": "^0.54.4",
+    "ipld-dag-cbor": "^0.18.0",
     "multihashing-async": "^2.1.2",
     "ora": "^5.3.0"
   }

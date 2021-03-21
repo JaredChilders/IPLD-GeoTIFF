@@ -2,11 +2,12 @@ import fetch from 'cross-fetch';
 import { IPFS, create } from 'ipfs'
 import { GeoUtils } from './utils/geo-utils';
 import CID from 'cids';
-import { Tile, IResponse, ImageMetadata, IWrapper, IWrappedWrapper, MasterWrapper, ITransport } from './interfaces/interfaces'
+import { Tile, IResponse, ImageMetadata, IWrapper, IWrappedWrapper, MasterWrapper, ITransport, BlockData, Resolution } from './interfaces/interfaces'
 
 const Block = require('@ipld/block/defaults');
+const dagCBOR = require('ipld-dag-cbor')
 const GeoTIFF = require('geotiff');
-const { fromUrl, fromUrls, fromArrayBuffer, fromBlob } = GeoTIFF;
+const { fromUrl, fromUrls, fromArrayBuffer, fromBlob, writeArrayBuffer } = GeoTIFF;
 const ora = require('ora');
 const cliSpinners = require('cli-spinners');
 
@@ -46,12 +47,9 @@ async function getTransport(_ipfs: IPFS, _sizeArray: Array<Array<Tile>>, _minW: 
             else if((bounding_Row[3] < _sizeArray[i][j].window[3])) bounding_Row[3] = _sizeArray[i][j].window[3]; // min h
         }
     }
-
-    const wrapperString = JSON.stringify(wrapper);
-    const row_data = new Uint8Array(JSON.parse(wrapperString)).buffer
-    
+    //console.log(wrapper)
     try{
-        const cid = await GeoUtils.ipfsPin(_ipfs, row_data);
+        const cid = await GeoUtils.ipfsPin(_ipfs, wrapper);
         return { cid: cid, boundingRow: bounding_Row, wrapper: wrapper  }
     }catch(err){
         throw err;
@@ -173,8 +171,8 @@ async function createTheTileArray(_ipfs: IPFS, image: any, current_xTSize: numbe
                     cid: cid,
                     data: data,
                     tileSize: {
-                        width: tile_data.width,
-                        height: tile_data.height
+                        height: tile_data.height,
+                        width: tile_data.width
                     }
                 }
 
@@ -230,7 +228,6 @@ async function getImageFromUrl(url: string): Promise<any>{
 async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
 
     let ires: IResponse = {
-        token: '',
         max_Dimensions: [],
         window: [],
         bbox: []
@@ -239,10 +236,6 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
     let masterDoc: MasterWrapper = {}
 
     try{
-        
-        //const powergate = await Powergate.build();
-        //ires.token = await powergate.getToken();
-        ires.token = "yoda"
 
         const max_Height: number = image.getHeight();
         const max_Width: number = image.getWidth();
@@ -270,31 +263,23 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
                 const current_xTSize = image.getTileHeight() * current_scale;
                 const current_yTSize = image.getTileHeight() * current_scale;
 
-                ires.max_Dimensions.push(current_xTSize);
-
-                // Also round to max size later
-
-                if((current_yTSize < max_Height) && (current_xTSize < max_Width)){
+                if((current_yTSize < max_Height / 2) && (current_xTSize < max_Width)){
                     let block: IWrappedWrapper = await createTheTileArray(_ipfs, image, current_xTSize, current_yTSize);
-                    masterDoc[`${current_yTSize}` + 'x' + `${current_xTSize}`] = block;
+                    masterDoc[`${current_yTSize}`] = block;
+                    ires.max_Dimensions.push(current_yTSize);
                 }
                 else{
                     // end tiling and get whole image then end while loop
                     let block: IWrappedWrapper = await createTheTileArray(_ipfs, image, max_Width, max_Height);
-                    masterDoc[`${max_Height}` + 'x' + `${max_Width}`] = block;
+                    masterDoc[`${max_Height}`] = block;
+                    ires.max_Dimensions.push(max_Height);
                     cont = false;
                 }
                 n += 1;
-                //console.log(" NEW SCALE \n")
             }
 
-            console.log(masterDoc)
-
-            const stringdoc = JSON.stringify(masterDoc);
-
-            const row_data = new Uint8Array(JSON.parse(stringdoc)).buffer
-
-            const _cid = await GeoUtils.ipfsPin(_ipfs, row_data);
+            //console.log(masterDoc)
+            const _cid = await GeoUtils.ipfsPin(_ipfs, masterDoc);
 
             ires.cid = _cid;
 
@@ -311,60 +296,79 @@ async function startTile(_ipfs: IPFS, image: any): Promise<IResponse>{
     return ires;
 }
 
+// gets the proper GeoTIFF and Tile using IPLD
+async  function getGeoTile(_ipfs: IPFS, _cid: CID, max_Dimensions: Array<number>): Promise<any>{
 
-async  function getGeoTIFF(_ipfs: IPFS, _cid: CID, _targetWindow: ImageMetadata): Promise<any>{
-    let masterDoc = new Map<string, any>(); 
-    
     try{
-        const strj = GeoUtils.ipfsGet(_ipfs, _cid)
-        console.log(strj);
-        //const strj = new TextDecoder('utf-8').decode(bytes);
-        /*
-        if(typeof(strj) == 'string') masterDoc = JSON.parse(strj); 
-        else throw new Error('Error')
+        // Retrieve IPLD Block from IPFS
+        const blockdata: BlockData = await GeoUtils.ipfsGetBlock(_ipfs, _cid)
+        // Obtain path to CID of row
+        const path = blockdata.pathList[1];
+        
+        /**
+         * Call utils.resolver.resolve to resolve the path in the binary data.
+         * The Nested CIDs are tagged bc of the DAG-CBOR Codec. 
+         * Returns: metadata of type Resolution
+         * {
+         *     value: any;
+         *     remainderPath: string;
+         * }
+         * */
+        const metadata = await GeoUtils.resolution(blockdata.data, path)
+        const row_cid = metadata.value; // The CID of the particular row
+        console.log(metadata.value);
 
-        console.log(masterDoc);*/
+        /**
+         * Using the IPFS Instance and the row CID, we can query each tile within that row and acces their respective binary data.
+         * Each Tile also has a respective CID, so they are also nested within the parent Row CID. 
+         */
+        const rowblockdata: BlockData = await GeoUtils.ipfsGetBlock(_ipfs, row_cid)
+        console.log(rowblockdata.pathList);
 
-        const target_Width = _targetWindow.o_window[2] - _targetWindow.o_window[0]; 
-        const target_Height = _targetWindow.o_window[3] - _targetWindow.o_window[1]; 
+        /**
+         * Here we define the binary of the Row and the path that we would like to resolve
+         */
+        const binary = rowblockdata.data;
+        const tile_path: string = '0,0,240,240/data';
 
-        /*
-        masterDoc.forEach((value: any, key: string)=> {
-            const wxh = key.split('x');
-            const width = parseInt(wxh[0], 10);
-            const height = parseInt(wxh[2], 10);
+        /**
+         * Again we Call utils.resolver.resolve with the Row Binary and the path to the tile we are trying to resolve to.
+         */
+        const tile_binary = await GeoUtils.resolution(binary, tile_path)
+        console.log(tile_binary.value)
 
-            if( (target_Height <= height) && (target_Width <= width) ){
-                //create selector to grab data
-                const mr = key.split('-');
-                const min_row = parseInt(mr[0], 10);
-                const max_row = parseInt(mr[2], 10);
+        // Convert the tile back to original format (deserialize the binary)
+        const node =  await dagCBOR.util.deserialize(tile_binary.value)
+        //console.log(node)
 
-                if((_targetWindow.o_window[1] >= min_row) && (_targetWindow.o_window[3] <= max_row)){
-                    //for(let i = 0; i < value.`$`)
-                }
-                else throw new Error("Does not have compatible row");
-            }
-            else throw new Error("Not Valid Size");
-        })*/
+        const binary_data_of_tile = node[0];
+
+        // Define Tile Metadata and the binary of the Tile
+        const tile_metadata = {
+            height: 240,
+            width: 240
+          };
+        // Write the ArrayBuffer and metadata to a tif file for end user consumption
+        const arrayBuffer = await writeArrayBuffer(binary_data_of_tile, tile_metadata);
+
+        return arrayBuffer;
 
     }catch(err){
         throw err; 
-    }
-
-    return "yo";
+    }    
 }
 
 async function main(){
     //let pool = new GeoTIFF.Pool();
     const url = 'http://download.osgeo.org/geotiff/samples/gdal_eg/cea.tif';
 
+    /*
     const request = [
         -28493.166784412522,
         4224973.143255847,
         2358.211624949061,
         4255884.5438021915
-    ];
+    ];*/
 
     try{
         const ipfs: IPFS = await create();
@@ -373,10 +377,11 @@ async function main(){
 
         console.log(ires);
 
-        const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(ires.window, ires.bbox, request);
-        console.log(targetWindow);
+        //const targetWindow: ImageMetadata = await GeoUtils.bboxtoWindow(ires.window, ires.bbox, request);
+        //console.log(targetWindow);
 
-        const yo = await getGeoTIFF(ipfs, ires.cid, targetWindow);
+        const tiff_of_tile = await getGeoTile(ipfs, ires.cid, ires.max_Dimensions);
+        console.log(tiff_of_tile)
     }catch(err){
         console.log(err)
         throw err

@@ -1,9 +1,12 @@
-import { ImageMetadata} from '../interfaces/interfaces';
+import { ImageMetadata, BlockData, Resolution } from '../interfaces/interfaces';
 import { IPFS, create } from 'ipfs'
 import CID from 'cids';
 import multihashing from 'multihashing-async';
+const dagCBOR = require('ipld-dag-cbor');
 
 const Block = require('@ipld/block/defaults');
+
+
 
 export class GeoUtils{
     static async toBuffer(ab: ArrayBuffer): Promise<Buffer> {
@@ -34,13 +37,11 @@ export class GeoUtils{
         }
     }
 
-    static async ipfsPin(ipfs: IPFS, bytes: ArrayBufferLike): Promise<CID>{
+    static async ipfsPin(ipfs: IPFS, objEncode: any): Promise<CID>{
         try{
-            const block = await Block.encoder(bytes, 'dag-cbor');
+            const block = await Block.encoder(objEncode, 'dag-cbor');
             const data = await block.encode();
             const cid = await block.cid();
-
-            console.log(cid)
         
             await ipfs.block.put(data, { cid: cid.toString() })
         
@@ -51,20 +52,35 @@ export class GeoUtils{
           }
     }
 
-    static async ipfsGet(ipfs: IPFS, cid: CID): Promise<any>{
+    static async ipfsGetBlock(ipfs: IPFS, cid: CID): Promise<BlockData>{
         try{
             const block = await ipfs.block.get(cid.toString());
-            const _block = await Block.decoder(block.data, 'dag-cbor');
-            const data = await _block.decode();
-            console.log(block);
-            console.log(block.data)
-            console.log(data)
-            return block;
+            const block_decoder = await Block.decoder(block.data, 'dag-cbor');
+            const data = await block_decoder.decode();
+
+            const gen = await dagCBOR.resolver.tree(block.data);
+            let pathList: Array<string> = Array.from(gen);
+
+            return { cid: block.cid, data: block.data, pathList: pathList };
         }catch(e){
             console.log(e)
             throw e;
         }
-        
+    }
+
+    // This function will be the one that will retrieve the Tiled Image
+    // Param: gen -> Generator Returned After Tile Row is returned 
+    // Param: path -> example: '240/480,0,514,480'
+    static async resolution(binary: any, path: string): Promise<Resolution> {
+        try{
+            const result: Resolution = await dagCBOR.resolver.resolve(binary, path);
+            //console.log(result)
+
+            return {value: result.value, remainderPath: result.remainderPath};
+        }catch(e){
+            console.log(e)
+            throw e;
+        }
     }
 
     // TODO: figure out which pixel corresponds to a given latitude and longitude <Completed>
@@ -111,3 +127,4 @@ export class GeoUtils{
         return {i_window: i_window, o_window: o_window, i_bbox: _bbox, o_bbox: _request_bbox}
     }
 }
+

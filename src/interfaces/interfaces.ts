@@ -12,6 +12,17 @@ export interface MasterWrapper{
     [key:string]: any;
 }
 
+export interface Resolution{
+    value: any;
+    remainderPath: string;
+}
+
+export interface BlockData{
+    cid: CID;
+    data: any;
+    pathList: Array<string>;
+}
+
 export interface ITransport{
     cid: CID;
     boundingRow: Array<number>;
@@ -19,8 +30,8 @@ export interface ITransport{
 }
 
 export interface TileSize {
-    width: number;
     height: number;
+    width: number;
 }
 
 export interface Tile {
@@ -48,7 +59,6 @@ export interface ImageMetadata{
 
 export interface IResponse {
     cid?: CID;
-    token: string;
     max_Dimensions: Array<number>;
     window: Array<number>;
     bbox: Array<number>;
